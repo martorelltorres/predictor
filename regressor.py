@@ -17,6 +17,7 @@ from sklearn.svm import SVR
 from sklearn.neighbors import NearestNeighbors
 from mpl_toolkits.mplot3d import Axes3D
 
+
 # --------------------- LOAD TRAINING DATA ---------------------
 paths = [
     '/home/uib/predictor/data/weights/3AUV_weights.csv',
@@ -45,9 +46,9 @@ for auv in np.unique(owa_input[:, 0]):
 # --------------------- MODEL DEFINITIONS ---------------------
 def create_models():
     return {
+        "SVR": MultiOutputRegressor(svm.SVR(kernel='rbf', C=7, epsilon=1.2, gamma=0.1)),
         "Decision Tree": MultiOutputRegressor(DecisionTreeRegressor(max_depth=5, min_samples_leaf=3)),
         "Random Forest": MultiOutputRegressor(RandomForestRegressor(n_estimators=1000)),
-        "SVR": MultiOutputRegressor(svm.SVR(kernel='rbf', C=7, epsilon=1.2, gamma=0.1)),
         "Polynomial" : MultiOutputRegressor(make_pipeline(PolynomialFeatures(4), LinearRegression())),
         "Lasso": MultiOutputRegressor(Lasso(alpha=0.5)),
     }
@@ -133,13 +134,7 @@ custom_order = sorted_df["Group"].values
 
 # MAE bar plot
 plt.figure(figsize=(16, 6))
-sns.barplot(
-    data=sorted_df,
-    x="Group",
-    y="MAE",
-    palette="viridis",
-    order=custom_order
-)
+sns.barplot(x='Group', y='MAE', data=sorted_df, hue='Group', palette='viridis', legend=False)
 plt.title("MAE Comparison by Model Within Each AUV Group")
 plt.ylabel("Mean Absolute Error (MAE)")
 plt.xlabel("Model by AUV Group")
@@ -150,13 +145,7 @@ plt.show()
 
 # RMSE bar plot
 plt.figure(figsize=(16, 6))
-sns.barplot(
-    data=sorted_df,
-    x="Group",
-    y="RMSE",
-    palette="magma",
-    order=custom_order
-)
+sns.barplot(x='Group', y='RMSE', data=sorted_df, hue='Group', palette='magma',order=custom_order, legend=False)
 plt.title("RMSE Comparison by Model Within Each AUV Group")
 plt.ylabel("Root Mean Squared Error (RMSE)")
 plt.xlabel("Model by AUV Group")
@@ -166,8 +155,12 @@ plt.tight_layout()
 plt.show()
 
 # --------------------- PREDICTION FOR SPECIFIC VALUES ---------------------
-auv_count = 6
-area = 55000
+try:
+    auv_count = int(input("Number of explorer AUVs (3-6): "))
+    area = float(input("Surface of the exploration area [m^2]: "))
+except ValueError:
+    print("Error: Invalid input. Please enter numeric values.")
+    exit(1)
 
 if auv_count not in models_dict:
     print(f"No trained models found for {auv_count} AUVs.")
