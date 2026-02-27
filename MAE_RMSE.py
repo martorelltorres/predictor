@@ -17,7 +17,6 @@ from sklearn.svm import SVR
 from sklearn.neighbors import NearestNeighbors
 from mpl_toolkits.mplot3d import Axes3D
 
-
 # --------------------- LOAD TRAINING DATA ---------------------
 paths = [
     '/home/uib/predictor/data/weights/3AUV_weights.csv',
@@ -121,128 +120,49 @@ for auv in sorted(test_df['auv_count'].unique()):
         })
 
 test_metrics_df = pd.DataFrame(test_metrics_summary).sort_values(["AUV Count", "MAE"])
-
-# Guardar resultados
 test_metrics_df.to_csv("results/owa_model_test_metrics.csv", index=False)
-print("\nTest metrics saved to 'results/owa_model_test_metrics.csv'")
+print("\n Test metrics saved to 'results/regression_models_metrics.csv'")
 
-# Crear columna combinada (para colores y leyenda) pero para etiquetas x solo usaremos modelo
+# --------------------- PLOTS ---------------------
+# Add a combined column for AUV and model
 test_metrics_df["Group"] = test_metrics_df["AUV Count"].astype(str) + " AUVs - " + test_metrics_df["Model"]
 
-sorted_df = test_metrics_df.sort_values(["AUV Count", "MAE"]).reset_index(drop=True)
-groups = sorted_df["Group"].values
-mae_values = sorted_df["MAE"].values
-rmse_values = sorted_df["RMSE"].values
-auv_counts = sorted_df["AUV Count"].values
-model_labels = sorted_df["Model"].values  # SOLO el nombre del modelo para etiquetas x
+# Sort by AUV Count and MAE
+sorted_df = test_metrics_df.sort_values(["AUV Count", "MAE"])
+custom_order = sorted_df["Group"].values
 
-# Define aquí los colores que tú quieras para cada número de AUV
-color_map = {
-    3: "#ff6f61",  # coral
-    4: "#6b5b95",  # púrpura vivo
-    5: "#88b04b",  # verde lima
-    6: "#f7cac9",  # rosa claro vivo
-}
-
-# Asignar colores según el número de AUV
-bar_colors = [color_map.get(auv, "#7f7f7f") for auv in auv_counts]  
-
-import matplotlib.patches as mpatches
-patches = [mpatches.Patch(color=color_map[auv], label=f"{auv} AUVs") for auv in sorted(color_map.keys())]
-
-# ---------- GRÁFICO MAE ----------
+# MAE bar plot
 plt.figure(figsize=(16, 6))
-bars = plt.bar(groups, mae_values, color=bar_colors)
-
+ax_mae = sns.barplot(x='Group', y='MAE', data=sorted_df, hue='Group', palette='viridis', legend=False)
 plt.title("MAE Comparison by Model Within Each AUV Group", fontsize=16)
 plt.ylabel("Mean Absolute Error (MAE)", fontsize=14)
-plt.xlabel("Regression Model", fontsize=14)
-
-plt.xticks(ticks=range(len(groups)), labels=model_labels, rotation=45, ha="right", fontsize=12)
-plt.yticks(fontsize=12)
+plt.xlabel("Model by AUV Group", fontsize=14)
+plt.xticks(rotation=45, ha="right", fontsize=12)
 plt.grid(axis='y', linestyle='--', alpha=0.6)
-plt.ylim(0, max(mae_values) + 0.3)
 
-for i, bar in enumerate(bars):
+# Add MAE values above bars
+for bar in ax_mae.containers[0]:
     height = bar.get_height()
-    plt.text(bar.get_x() + bar.get_width() / 2.0, height + 0.05,
-             f'{mae_values[i]:.2f}', ha='center', va='bottom', fontsize=11, color='black')
+    ax_mae.annotate(f'{height:.3f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 5), textcoords="offset points", ha='center', fontsize=10)
 
-plt.legend(handles=patches,loc='upper left', fontsize=12)
 plt.tight_layout()
 plt.show()
 
-# ---------- GRÁFICO RMSE ----------
+# RMSE bar plot
 plt.figure(figsize=(16, 6))
-bars = plt.bar(groups, rmse_values, color=bar_colors)
-
+ax_rmse = sns.barplot(x='Group', y='RMSE', data=sorted_df, hue='Group', palette='magma', order=custom_order, legend=False)
 plt.title("RMSE Comparison by Model Within Each AUV Group", fontsize=16)
 plt.ylabel("Root Mean Squared Error (RMSE)", fontsize=14)
-plt.xlabel("Regression Model", fontsize=14)
-
-plt.xticks(ticks=range(len(groups)), labels=model_labels, rotation=45, ha="right", fontsize=12)
-plt.yticks(fontsize=12)
+plt.xlabel("Model by AUV Group", fontsize=14)
+plt.xticks(rotation=45, ha="right", fontsize=12)
 plt.grid(axis='y', linestyle='--', alpha=0.6)
-plt.ylim(0, max(rmse_values) + 0.3)
 
-for i, bar in enumerate(bars):
+# Add RMSE values above bars
+for bar in ax_rmse.containers[0]:
     height = bar.get_height()
-    plt.text(bar.get_x() + bar.get_width() / 2.0, height + 0.05,
-             f'{rmse_values[i]:.2f}', ha='center', va='bottom', fontsize=11, color='black')
-
-plt.legend(handles=patches,loc='upper left', fontsize=12)
-plt.tight_layout()
-plt.show()
-
-# --------------------- PREDICTION FOR SPECIFIC VALUES ---------------------
-try:
-    auv_count = int(input("Number of explorer AUVs (3-6): "))
-    area = float(input("Surface of the exploration area [m^2]: "))
-except ValueError:
-    print("Error: Invalid input. Please enter numeric values.")
-    exit(1)
-
-if auv_count not in models_dict:
-    print(f"No trained models found for {auv_count} AUVs.")
-else:
-    input_data = np.array([[auv_count, area]])
-    input_scaled = scalers_dict[auv_count].transform(input_data)
-
-    print(f"\n Prediction for {auv_count} AUVs and area = {area}:")
-    for model_name, model in models_dict[auv_count].items():
-        prediction = model.predict(input_scaled)[0]
-        norm_weights = normalize_weights(prediction[:3])
-        utility = prediction[3] if len(prediction) > 3 else np.nan
-
-        w1, w2, w3 = norm_weights
-        print(f"\n🔹 {model_name}:")
-        print(f"    w1 = {w1:.3f}, w2 = {w2:.3f}, w3 = {w3:.3f}, utility = {utility:.3f}")
-
-
-# --------------------- 3D SVR REGRESSION PLOTS ---------------------
-X = owa_df[['auv_count', 'area']].values
-y = owa_df[['w1', 'w2', 'w3']].values
-
-auv_range = np.linspace(X[:, 0].min(), X[:, 0].max(), 50)
-area_range = np.linspace(X[:, 1].min(), X[:, 1].max(), 50)
-auv_grid, area_grid = np.meshgrid(auv_range, area_range)
-X_grid = np.c_[auv_grid.ravel(), area_grid.ravel()]
-
-fig = plt.figure(figsize=(18, 5))
-for i, weight_name in enumerate([r'$w_1$', r'$w_2$', r'$w_3$']):
-    model = make_pipeline(StandardScaler(), SVR(kernel='rbf', C=7, epsilon=1.2, gamma=0.1))
-    model.fit(X, y[:, i])
-    y_pred_grid = model.predict(X_grid).reshape(auv_grid.shape)
-
-    ax = fig.add_subplot(1, 3, i+1, projection='3d')
-    ax.plot_surface(auv_grid, area_grid, y_pred_grid, cmap='viridis', alpha=0.7)
-    ax.scatter(X[:, 0], X[:, 1], y[:, i], c='red', s=20)
-    ax.set_xlabel('Number of AUVs', fontsize=14,labelpad=5)
-    ax.set_ylabel('Exploration Area Surface [m²]', fontsize=14,labelpad=15)
-    ax.set_zlabel(weight_name,fontsize=14)
-    ax.set_title(f'SVM Regression ({weight_name})', fontsize=16)
-    ax.tick_params(axis='both', labelsize=12)
-    ax.tick_params(axis='z', labelsize=12)
+    ax_rmse.annotate(f'{height:.3f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                     xytext=(0, 5), textcoords="offset points", ha='center', fontsize=10)
 
 plt.tight_layout()
 plt.show()
